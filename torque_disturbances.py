@@ -6,7 +6,7 @@ Attitude disturbance torque budget for the MOSAICO hexagonal assembly
 spacecraft, 200–1000 km LEO Sun-synchronous orbit.
 
 New in this version: drag-dependent torques (aerodynamic drag) are evaluated
-for three solar activity levels (low / mean / high, F10.7 ≈ 75 / 150 / 230 SFU)
+for three solar activity levels (low / mean / high, F10.7 = 75 / 150 / 230 SFU)
 so that the solar-cycle sensitivity of the torque environment is visible
 alongside the gravity-gradient and SRP torques.
 
@@ -49,7 +49,7 @@ N_ATOMS        = 1
 NOMINAL_EDGE   = 1.65    # m
 NOMINAL_WIDTH  = 0.4     # m
 NOMINAL_MASS   = 1250    # kg
-COM_COP        = 0.1     # m
+COM_COP        = 0.5     # m
 
 SCALING_MIN = 0.8
 SCALING_MAX = 1.2
@@ -114,11 +114,11 @@ plt.rcParams.update({
 # Activity-level display metadata (mirrors ACT_STYLE in plot_orb_perturbations)
 ACT_STYLE = {
     'low':  dict(color="#2ca02c", ls=':', lw=1.8,
-                 label='Low activity (F10.7≈75)',   fill='#98df8a'),
+                 label='Low activity (F10.7=75)',   fill='#98df8a'),
     'mean': dict(color="#1f77b4", ls='-', lw=2.2,
-                 label='Mean activity (F10.7≈150)', fill='#aec7e8'),
+                 label='Mean activity (F10.7=150)', fill='#aec7e8'),
     'high': dict(color="#d62728", ls='--', lw=1.8,
-                 label='High activity (F10.7≈230)', fill='#ffbb78'),
+                 label='High activity (F10.7=230)', fill='#ffbb78'),
 }
 
 # ============================================================
@@ -139,8 +139,8 @@ def style_axes(ax, ylabel="Disturbance torque [N·m]",
 # Gravity-gradient torque
 # ============================================================
 def gravity_gradient_torque(altitude_km, inertia_matrix):
-    inertia_km = inertia_matrix * 1e-6   # kg·m² -> kg·km²
-    r = R_EARTH + altitude_km
+    inertia_km = inertia_matrix
+    r = (R_EARTH + altitude_km)*1e3
     phi   = np.linspace(0, 2*np.pi, 100, endpoint=False)
     theta = np.linspace(0, np.pi, 50)
     phi, theta = np.meshgrid(phi, theta)
@@ -151,7 +151,7 @@ def gravity_gradient_torque(altitude_km, inertia_matrix):
     r_norm = np.linalg.norm(r_vec, axis=-1)
     Ir     = np.einsum('ij,...j->...i', inertia_km, r_vec)
     torque = (3 * MU_EARTH / r_norm[..., None]**5) * np.cross(r_vec, Ir)
-    torque_mag = np.linalg.norm(torque, axis=-1)
+    torque_mag = np.linalg.norm(torque, axis=-1)*1e9
     max_idx = np.unravel_index(np.argmax(torque_mag), torque_mag.shape)
     return torque_mag[max_idx], phi[max_idx], theta[max_idx]
 
@@ -307,12 +307,8 @@ def fig_drag_torque(drag_env):
 
     style_axes(ax)
     ax.set_title("Aerodynamic Drag Torque vs. Altitude\n"
-                 "(shaded = geometry + ψ envelope at each activity level)")
+                 "(NRLMSISE-00, shaded = geometry + ψ envelope at each activity level)")
     ax.legend(fontsize=10)
-    ax.text(0.02, 0.03,
-            "Low/high activity: F10.7-scaled engineering estimates\n"
-            "(see orbital_perturbations.py for caveats)",
-            transform=ax.transAxes, fontsize=7.5, color="#666666", va="bottom")
     fig.savefig(os.path.join(OUT_DIR, "fig_torque_drag.svg"))
     plt.close(fig)
 
@@ -435,12 +431,8 @@ def fig_torque_budget_solar_activity(gg, drag_env, srp):
 
     style_axes(ax)
     ax.set_title("Disturbance Torque Budget vs. Solar Activity — LEO SSO\n"
-                 "(drag shaded bands = geometry + ψ envelope at each level)")
+                 "(NRLMSISE-00)")
     ax.legend(ncol=2, loc="upper right", fontsize=9)
-    ax.text(0.02, 0.03,
-            "Low/high drag: F10.7-scaled engineering estimates\n"
-            "(not independently tabulated; see orbital_perturbations.py)",
-            transform=ax.transAxes, fontsize=7.5, color="#666666", va="bottom")
     fig.savefig(os.path.join(OUT_DIR,
                              "fig_torque_budget_solar_activity.svg"))
     plt.close(fig)

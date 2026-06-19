@@ -5,32 +5,25 @@ plot_orb_perturbations.py
 Generates publication-quality plots (300 dpi) for the preliminary orbital
 disturbance budget of a LEO Sun-Synchronous mission (200-1000 km).
 
-New in this version: all drag-dependent figures are produced for three solar
-activity levels (low / mean / high, F10.7 ≈ 75 / 150 / 230 SFU) so that the
-solar-cycle sensitivity of the drag environment is visible alongside every
-other perturbation source.
-
-The low- and high-activity Harris-Priester tables are DERIVED engineering
-estimates (F10.7-scaled from the Montenbruck & Gill mean table using
-altitude-dependent sensitivity exponents from Emmert 2015); they are NOT
-independently tabulated primary-source data.  See orbital_perturbations.py
-for the full derivation and caveats.
+Atmospheric density is obtained from pre-computed NRLMSISE-00 tables
+(Picone et al., 2002) embedded in orbital_perturbations.py, evaluated at
+three solar activity levels (low / mean / high, F10.7 = 75 / 150 / 230 SFU).
 
 Run:
     python3 plot_orb_perturbations.py
 
 Outputs (in ./figures/):
-    fig1_zonal_harmonics.png
-    fig2_atmospheric_drag.png                 <- three activity curves
-    fig2b_harris_priester_density_profile.png <- three activity curves
-    fig2c_harris_priester_diurnal_bulge.png
-    fig2d_drag_solar_activity_ratio.png       <- NEW: ratio high/low vs mean
-    fig3_srp.png
-    fig4_third_body.png
-    fig5_disturbance_budget.png               <- three drag bands
-    fig5b_disturbance_budget_solar_activity.png <- NEW: budget per activity
+    fig1_zonal_harmonics.svg
+    fig2_atmospheric_drag.svg                 <- three activity curves
+    fig2b_nrlmsise_density_profile.svg        <- three activity curves
+    fig2c_nrlmsise_diurnal_variation.svg      <- n=2 vs n=6 exponent
+    fig2d_drag_solar_activity_ratio.svg       <- ratio high/low vs mean
+    fig3_srp.svg
+    fig4_third_body.svg
+    fig5_disturbance_budget.svg               <- three drag bands
+    fig5b_disturbance_budget_solar_activity.svg
     fig6_deorbit_decay.svg
-    disturbance_budget_table.csv              <- extended with activity columns
+    disturbance_budget_table.csv
     deorbit_decay_summary.csv
 """
 
@@ -81,21 +74,21 @@ PALETTE = {
     "act_high": "#d62728",   # red
 }
 
-# Activity-level display metadata (mirrors op._HP_TABLES)
+# Activity-level display metadata
 ACT_STYLE = {
     'low':  dict(color=PALETTE["act_low"],  ls=':', lw=1.8,
-                 label='Low activity (F10.7≈75)',  fill='#98df8a'),
-    'mean': dict(color=PALETTE["act_mean"], ls='-', lw=2.2,
-                 label='Mean activity (F10.7≈150)', fill='#aec7e8'),
+                 label='Low activity (F10.7=75)',  fill='#98df8a'),
+    'mean': dict(color=PALETTE["act_mean"], ls='--', lw=2.2,
+                 label='Mean activity (F10.7=150)', fill='#aec7e8'),
     'high': dict(color=PALETTE["act_high"], ls='--', lw=1.8,
-                 label='High activity (F10.7≈230)', fill='#ffbb78'),
+                 label='High activity (F10.7=230)', fill='#ffbb78'),
 }
 
 H_MIN, H_MAX, N_PTS = 200.0, 1000.0, 80
 ALT = np.linspace(H_MIN, H_MAX, N_PTS)
 REF_ALTS = [200, 300, 400, 500, 600, 700, 800, 900, 1000]
 
-AM_GRID  = np.linspace(0.005, 0.04, 12)   # area-to-mass [m^2/kg]
+AM_GRID  = np.linspace(0.005, 0.06, 12)   # area-to-mass [m^2/kg]
 CR_GRID  = np.linspace(1.0,   2.0,   6)   # SRP reflectivity
 
 DECAY_DAYS     = 10.0
@@ -136,7 +129,7 @@ def fig_zonal_harmonics():
     style_axes(ax)
     ax.set_title("Earth Gravity Field Perturbations vs. Altitude\n")
     ax.legend(ncol=2, loc="upper right")
-    fig.savefig(os.path.join(OUT_DIR, "fig1_zonal_harmonics.png"))
+    fig.savefig(os.path.join(OUT_DIR, "fig1_zonal_harmonics.svg"))
     plt.close(fig)
     return {"J2": series[2],
             "J3-J6": [t - j2 for t, j2 in zip(total, series[2])],
@@ -178,23 +171,18 @@ def fig_drag(envelopes):
 
     style_axes(ax)
     ax.set_title("Atmospheric Drag Acceleration vs. Altitude\n"
-                 "(Harris-Priester, shaded bands = A/m & ψ envelope)")
+                 "(NRLMSISE-00, shaded bands = A/m & ψ envelope)")
     ax.legend(loc="upper right", fontsize=10)
-    ax.text(0.02, 0.03,
-            "Low/high activity are F10.7-scaled engineering estimates\n"
-            "(not independently tabulated; see orbital_perturbations.py)",
-            transform=ax.transAxes, fontsize=7.5, color="#666666",
-            va="bottom")
-    fig.savefig(os.path.join(OUT_DIR, "fig2_atmospheric_drag.png"))
+    fig.savefig(os.path.join(OUT_DIR, "fig2_atmospheric_drag.svg"))
     plt.close(fig)
 
 
-def fig_harris_priester_density_profile():
-    """Fig 2b — min/max density profiles for all three activity levels."""
+def fig_nrlmsise_density_profile():
+    """Fig 2b — NRLMSISE-00 rho_min/rho_max profiles for all three activity levels."""
     fig, ax = plt.subplots()
     for act in op.SOLAR_ACTIVITIES:
         st  = ACT_STYLE[act]
-        rho_min, rho_max = op.harris_priester_minmax_density(ALT, activity=act)
+        rho_min, rho_max = op.nrlmsise_minmax_density(ALT, activity=act)
         ax.fill_between(ALT, rho_min, rho_max,
                         color=st['fill'], alpha=0.20)
         ax.plot(ALT, rho_min, color=st['color'],
@@ -203,28 +191,27 @@ def fig_harris_priester_density_profile():
         ax.plot(ALT, rho_max, color=st['color'],
                 linestyle=st['ls'], linewidth=st['lw'], alpha=0.55)
 
-    ax.axvline(op._HP_H_MAX_VALID_KM, color="gray",
+    ax.axvline(op._CACHE_ALT_MAX_KM, color="gray",
                linestyle=":", linewidth=1.2)
-    ax.text(op._HP_H_MAX_VALID_KM + 30, 3e-13,
-            "Table validity\nlimit (1000 km)", fontsize=7.5,
+    ax.text(op._CACHE_ALT_MAX_KM + 30, 3e-16,
+            "Cache limit\n(1000 km)", fontsize=7.5,
             color="#555555", va="top")
     style_axes(ax, ylabel="Atmospheric density [kg/m³]")
-    ax.set_title("Harris-Priester Density vs. Altitude — Three Solar Activity Levels\n"
-                 "(low/high: F10.7-scaled from M&G mean table; see caveats)")
+    ax.set_title("NRLMSISE-00 Density vs. Altitude — Three Solar Activity Levels\n"
+                 "(global min/max over lat × LST × DOY grid, Ap=4)")
     ax.legend(loc="upper right", fontsize=8.5)
-    fig.savefig(os.path.join(OUT_DIR,
-                             "fig2b_harris_priester_density_profile.png"))
+    fig.savefig(os.path.join(OUT_DIR, "fig2b_nrlmsise_density_profile.svg"))
     plt.close(fig)
 
 
-def fig_harris_priester_diurnal_bulge():
-    """Fig 2c — diurnal bulge shape (mean activity only; n=2 vs n=6)."""
+def fig_nrlmsise_diurnal_variation():
+    """Fig 2c — density vs diurnal-bulge angle psi, mean activity, n=2 vs n=6."""
     psi = np.linspace(0, 180, 181)
     ref_alts = [400, 700, 1000]
     fig, axes = plt.subplots(1, 3, figsize=(13, 4.6), sharey=False)
     for ax, h in zip(axes, ref_alts):
-        rho_n2 = op.harris_priester_density(h, psi, n_exp=2, activity='mean')
-        rho_n6 = op.harris_priester_density(h, psi, n_exp=6, activity='mean')
+        rho_n2 = op.nrlmsise_density(h, psi, n_exp=2, activity='mean')
+        rho_n6 = op.nrlmsise_density(h, psi, n_exp=6, activity='mean')
         ax.plot(psi, rho_n2, color=PALETTE["n2"], label="n=2 (low incl.)")
         ax.plot(psi, rho_n6, color=PALETTE["n6"], label="n=6 (near-polar/SSO)")
         ax.set_title(f"h = {h} km", fontsize=12)
@@ -234,11 +221,11 @@ def fig_harris_priester_diurnal_bulge():
     axes[0].set_ylabel("Density [kg/m³]")
     axes[0].legend(loc="upper right", fontsize=9)
     fig.suptitle(
-        "Harris-Priester Diurnal Bulge Shape (mean solar activity)",
+        "NRLMSISE-00 Diurnal Density Variation (mean solar activity)\n"
+        "Cosine-power interpolation between rho_min and rho_max, n=2 vs n=6",
         fontweight="bold", fontsize=13)
     fig.tight_layout(rect=[0, 0, 1, 0.93])
-    fig.savefig(os.path.join(OUT_DIR,
-                             "fig2c_harris_priester_diurnal_bulge.png"))
+    fig.savefig(os.path.join(OUT_DIR, "fig2c_nrlmsise_diurnal_variation.svg"))
     plt.close(fig)
 
 
@@ -256,11 +243,11 @@ def fig_drag_solar_activity_ratio(envelopes):
 
     fig, ax = plt.subplots()
     ax.plot(ALT, ratio_high, color=PALETTE["act_high"], linestyle='--',
-            linewidth=2.0, label="High / Mean  (F10.7≈230 / 150)")
+            linewidth=2.0, label="High / Mean  (F10.7=230 / 150)")
     ax.axhline(1.0, color=PALETTE["act_mean"], linewidth=1.5,
                linestyle='-', label="Mean (reference, ratio = 1)")
     ax.plot(ALT, ratio_low,  color=PALETTE["act_low"],  linestyle=':',
-            linewidth=2.0, label="Low / Mean   (F10.7≈75 / 150)")
+            linewidth=2.0, label="Low / Mean   (F10.7=75 / 150)")
 
     ax.fill_between(ALT, ratio_low, ratio_high,
                     color="#d9d9d9", alpha=0.35, label="Solar-cycle band")
@@ -270,7 +257,7 @@ def fig_drag_solar_activity_ratio(envelopes):
     ax.yaxis.set_minor_formatter(mticker.NullFormatter())
     style_axes(ax, ylabel="Drag acceleration ratio (vs. mean activity)", logy=True)
     ax.set_title("Solar-Cycle Sensitivity of Atmospheric Drag\n"
-                 "(Harris-Priester, nominal A/m & ψ, F10.7-scaled estimates)")
+                 "(NRLMSISE-00, nominal A/m & ψ)")
     ax.legend(loc="upper left", fontsize=10)
 
     # Annotate key altitudes
@@ -283,12 +270,7 @@ def fig_drag_solar_activity_ratio(envelopes):
                     arrowprops=dict(arrowstyle='->', color=PALETTE["act_high"],
                                    lw=0.8))
 
-    ax.text(0.02, 0.03,
-            "Ratios derived from F10.7-scaled engineering estimates\n"
-            "(not independently tabulated; see orbital_perturbations.py)",
-            transform=ax.transAxes, fontsize=7.5, color="#666666", va="bottom")
-    fig.savefig(os.path.join(OUT_DIR,
-                             "fig2d_drag_solar_activity_ratio.png"))
+    fig.savefig(os.path.join(OUT_DIR, "fig2d_drag_solar_activity_ratio.svg"))
     plt.close(fig)
 
 
@@ -308,7 +290,7 @@ def fig_srp():
     ax.set_title("Solar Radiation Pressure Acceleration vs. Altitude\n"
                  "(no eclipse, fully sunlit case)")
     ax.legend(loc="center right")
-    fig.savefig(os.path.join(OUT_DIR, "fig3_srp.png"))
+    fig.savefig(os.path.join(OUT_DIR, "fig3_srp.svg"))
     plt.close(fig)
     lo_arr  = np.full_like(ALT, lo)
     nom_arr = np.full_like(ALT, nom)
@@ -334,7 +316,7 @@ def fig_third_body():
     ax.set_title("Third-Body (Lunisolar) Perturbation vs. Altitude\n"
                  "(max over orbital phase, 0–360°)")
     ax.legend(loc="upper left")
-    fig.savefig(os.path.join(OUT_DIR, "fig4_third_body.png"))
+    fig.savefig(os.path.join(OUT_DIR, "fig4_third_body.svg"))
     plt.close(fig)
     return {"moon": moon, "sun": sun}
 
@@ -359,12 +341,12 @@ def fig_disturbance_budget(zonal, envelopes, srp, tb):
     ax.plot(ALT, tb["sun"],  color=PALETTE["sun"],  label="Sun (3rd body)")
     style_axes(ax)
     ax.set_title("Preliminary Disturbance Budget — LEO SSO Mission\n"
-                 "(Drag: Harris-Priester, mean solar activity)")
+                 "(Drag: NRLMSISE-00, mean solar activity)")
     ax.legend(ncol=2, loc="upper right", fontsize=9)
     ax.axvspan(600, 800, color="gray", alpha=0.07)
     ax.text(700, ax.get_ylim()[1] * 0.4, "Typical\nSSO band",
             ha="center", fontsize=8.5, color="#555555")
-    fig.savefig(os.path.join(OUT_DIR, "fig5_disturbance_budget.png"))
+    fig.savefig(os.path.join(OUT_DIR, "fig5_disturbance_budget.svg"))
     plt.close(fig)
 
 
@@ -408,12 +390,8 @@ def fig_disturbance_budget_solar_activity(zonal, envelopes, srp, tb):
     ax.axvspan(600, 800, color="gray", alpha=0.06)
     ax.text(700, ax.get_ylim()[1] * 0.35, "Typical\nSSO band",
             ha="center", fontsize=8.0, color="#555555")
-    ax.text(0.02, 0.03,
-            "Low/high drag: F10.7-scaled engineering estimates\n"
-            "(not independently tabulated; see orbital_perturbations.py)",
-            transform=ax.transAxes, fontsize=7.5, color="#666666", va="bottom")
     fig.savefig(os.path.join(OUT_DIR,
-                             "fig5b_disturbance_budget_solar_activity.png"))
+                             "fig5b_disturbance_budget_solar_activity.svg"))
     plt.close(fig)
 
 
@@ -509,10 +487,6 @@ def fig_deorbit_decay():
             ax.plot(t_n, a_n, color=st['color'],
                     linestyle=st['ls'], linewidth=st['lw'],
                     label=ACT_STYLE[act]['label'] if first_act else None)
-            ax.plot(t_f, a_f, color=st['color'],
-                    linestyle='--', linewidth=0.9, alpha=0.7)
-            ax.plot(t_s, a_s, color=st['color'],
-                    linestyle=':', linewidth=0.9, alpha=0.7)
 
             row += [f"{a_n[-1]:.2f}", "yes" if re_n else "no",
                     f"{tr_n:.2f}" if re_n else "-"]
@@ -610,11 +584,11 @@ if __name__ == "__main__":
     envelopes = _compute_drag_envelopes()
     fig_drag(envelopes)
 
-    print("Harris-Priester density profiles (3 activity levels)...")
-    fig_harris_priester_density_profile()
+    print("NRLMSISE-00 density profiles (3 activity levels)...")
+    fig_nrlmsise_density_profile()
 
-    print("Harris-Priester diurnal bulge shape...")
-    fig_harris_priester_diurnal_bulge()
+    print("NRLMSISE-00 diurnal variation (n=2 vs n=6)...")
+    fig_nrlmsise_diurnal_variation()
 
     print("Solar-activity drag ratio plot...")
     fig_drag_solar_activity_ratio(envelopes)
