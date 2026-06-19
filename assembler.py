@@ -490,7 +490,7 @@ def plot_structure(
 if __name__ == "__main__":
     edge = 1.65
     thickness = 0.4
-    mass_hex = 1250
+    mass_hex = 1250/7.0
     n_atoms = 1
 
     props = compute_mass_properties(
