@@ -48,8 +48,8 @@ ALT = np.linspace(H_MIN, H_MAX, N_PTS)
 N_ATOMS        = 1
 NOMINAL_EDGE   = 1.65    # m
 NOMINAL_WIDTH  = 0.4     # m
-NOMINAL_MASS   = 1250    # kg
-COM_COP        = 0.5     # m
+NOMINAL_MASS   = 1250/7    # kg, single hexagon
+COM_COP        = 0.2     # m
 
 SCALING_MIN = 0.8
 SCALING_MAX = 1.2

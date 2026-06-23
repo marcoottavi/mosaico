@@ -88,7 +88,7 @@ H_MIN, H_MAX, N_PTS = 200.0, 1000.0, 80
 ALT = np.linspace(H_MIN, H_MAX, N_PTS)
 REF_ALTS = [200, 300, 400, 500, 600, 700, 800, 900, 1000]
 
-AM_GRID  = np.linspace(0.005, 0.06, 12)   # area-to-mass [m^2/kg]
+AM_GRID  = np.linspace(0.003, 0.04, 12)   # area-to-mass [m^2/kg]
 CR_GRID  = np.linspace(1.0,   2.0,   6)   # SRP reflectivity
 
 DECAY_DAYS     = 10.0
@@ -384,8 +384,7 @@ def fig_disturbance_budget_solar_activity(zonal, envelopes, srp, tb):
                 label=f"Drag nominal – {st['label']}", zorder=4)
 
     style_axes(ax)
-    ax.set_title("Disturbance Budget vs. Solar Activity — LEO SSO Mission\n"
-                 "(drag bands span A/m & ψ envelope at each activity level)")
+    ax.set_title("Disturbance Budget vs. Solar Activity — LEO SSO Mission\n")
     ax.legend(ncol=2, loc="upper right", fontsize=8.5)
     ax.axvspan(600, 800, color="gray", alpha=0.06)
     ax.text(700, ax.get_ylim()[1] * 0.35, "Typical\nSSO band",
