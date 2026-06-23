@@ -88,7 +88,7 @@ H_MIN, H_MAX, N_PTS = 200.0, 1000.0, 80
 ALT = np.linspace(H_MIN, H_MAX, N_PTS)
 REF_ALTS = [200, 300, 400, 500, 600, 700, 800, 900, 1000]
 
-AM_GRID  = np.linspace(0.003, 0.04, 12)   # area-to-mass [m^2/kg]
+AM_GRID  = np.array([0.003, 0.011, 0.023])   # area-to-mass [m^2/kg]
 CR_GRID  = np.linspace(1.0,   2.0,   6)   # SRP reflectivity
 
 DECAY_DAYS     = 10.0
@@ -406,14 +406,6 @@ def _da_dt_fixed(t, y, area_to_mass, psi_deg, activity):
     return [-2.0 * (a_drag / 1000.0) / n]
 
 
-def _da_dt_nominal(t, y, activity):
-    a_km   = y[0]
-    h_km   = a_km - op.R_EARTH
-    _, a_drag_nom, _ = op.drag_accel_envelope(h_km, AM_GRID, activity=activity)
-    n = np.sqrt(op.MU_EARTH / a_km**3)
-    return [-2.0 * (a_drag_nom / 1000.0) / n]
-
-
 def _reentry_event(t, y, *args):
     return (y[0] - op.R_EARTH) - REENTRY_ALT_KM
 _reentry_event.terminal  = True
@@ -439,12 +431,6 @@ def _propagate_decay(h0_km, rhs, args=()):
     return t_days, alt_km, reentered, t_reentry
 
 
-# Decay line styles per activity level
-_DECAY_STYLE = {
-    'low':  dict(color=PALETTE["act_low"],  ls=':', lw=1.5),
-    'mean': dict(color=PALETTE["act_mean"], ls='-', lw=2.2),
-    'high': dict(color=PALETTE["act_high"], ls='--', lw=1.5),
-}
 # am / psi combos for fast and slow legs
 _AM_MIN, _AM_MAX = AM_GRID.min(), AM_GRID.max()
 
@@ -462,36 +448,26 @@ def fig_deorbit_decay():
         # For each activity level plot fast / nominal / slow
         first_act = True
         row = [h0]
-        for act in op.SOLAR_ACTIVITIES:
-            st = _DECAY_STYLE[act]
 
-            # fast: max A/m, psi=0 (bulge)
-            t_f, a_f, re_f, tr_f = _propagate_decay(
-                h0, _da_dt_fixed, args=(_AM_MAX, 0.0, act))
-            # slow: min A/m, psi=180 (anti-bulge)
-            t_s, a_s, re_s, tr_s = _propagate_decay(
-                h0, _da_dt_fixed, args=(_AM_MIN, 180.0, act))
-            # nominal
-            t_n, a_n, re_n, tr_n = _propagate_decay(
-                h0, _da_dt_nominal, args=(act,))
+        # fast: max A/m, psi=0 (bulge)
+        t_f, a_f, re_f, tr_f = _propagate_decay(
+            h0, _da_dt_fixed, args=(_AM_MAX, 0.0, 'high'))
+        # slow: min A/m, psi=180 (anti-bulge)
+        t_s, a_s, re_s, tr_s = _propagate_decay(
+            h0, _da_dt_fixed, args=(_AM_MIN, 180.0, 'low'))
+        # nominal
+        t_n, a_n, re_n, tr_n = _propagate_decay(
+            h0, _da_dt_fixed, args=(AM_GRID[1], 90.0, 'mean'))
 
-            # Align arrays to a common time grid for fill_between
-            t_common = np.linspace(0, DECAY_DAYS, 300)
-            a_f_i = np.interp(t_common, t_f, a_f,
-                              left=a_f[0], right=a_f[-1])
-            a_s_i = np.interp(t_common, t_s, a_s,
-                              left=a_s[0], right=a_s[-1])
-            ax.fill_between(t_common, a_s_i, a_f_i,
-                            color=st['color'], alpha=0.10)
-            ax.plot(t_n, a_n, color=st['color'],
-                    linestyle=st['ls'], linewidth=st['lw'],
-                    label=ACT_STYLE[act]['label'] if first_act else None)
-
-            row += [f"{a_n[-1]:.2f}", "yes" if re_n else "no",
-                    f"{tr_n:.2f}" if re_n else "-"]
-            first_act = False
-
-        summary_rows.append(row)
+        # Align arrays to a common time grid for fill_between
+        t_common = np.linspace(0, DECAY_DAYS, 300)
+        a_f_i = np.interp(t_common, t_f, a_f,
+                            left=a_f[0], right=a_f[-1])
+        a_s_i = np.interp(t_common, t_s, a_s,
+                            left=a_s[0], right=a_s[-1])
+        ax.fill_between(t_common, a_s_i, a_f_i,
+                        color='red', alpha=0.10)
+        ax.plot(t_n, a_n, color='black')
 
         ax.set_title(f"Initial altitude: {h0} km", fontsize=11, pad=6)
         ax.set_xlim(0, DECAY_DAYS)
@@ -509,13 +485,8 @@ def fig_deorbit_decay():
 
     fig.delaxes(axes[-1])
 
-    # Build legend from the last populated axes
-    handles, labels = axes[0].get_legend_handles_labels()
-    fig.legend(handles, labels, loc="upper center", ncol=3,
-               fontsize=10, frameon=True, bbox_to_anchor=(0.5, 0.975))
     fig.suptitle(
-        f"{DECAY_DAYS:.0f}-Day Orbital Decay — Three Solar Activity Levels\n"
-        "(solid = nominal, dashed = fast, dotted = slow at each level)",
+        f"{DECAY_DAYS:.0f}-Day Orbital Decay ",
         fontsize=14, fontweight="bold", y=0.998)
     fig.subplots_adjust(left=0.09, right=0.97, top=0.93,
                         bottom=0.05, hspace=0.28, wspace=0.22)
