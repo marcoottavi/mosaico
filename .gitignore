@@ -9,6 +9,7 @@ __pycache__/
 # Outptus
 figures/
 outputs/
+kernels/
 
 # Distribution / packaging
 .Python
@@ -29,6 +30,7 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+*.yml
 
 # PyInstaller
 #   Usually these files are written by a python script from a template
