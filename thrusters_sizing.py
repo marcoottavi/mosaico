@@ -12,7 +12,7 @@ WAYPOINTS = np.array([30000, 5000, 1000, 500])/1000 # km
 A_M = 0.01 # m^2/kg
 ORBIT_ALTITUDE = 600 # km
 T_MISSION = 10*365*24*3600 # seconds
-I_SP = 300 # s
+I_SP = 230 # s
 MASS = 1250 # kg (whole atom)
 DELTA_V_MARGIN = 0.2 # 20% margin
 
