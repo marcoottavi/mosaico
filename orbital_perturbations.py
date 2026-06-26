@@ -74,6 +74,9 @@ D_SUN   = 149597870.7              # [km]
 
 SOLAR_PRESSURE = 4.56e-6           # [N/m^2]
 SECONDS_PER_TROPICAL_YEAR = 365.2421897 * 86400.0
+ALTITUDE = 600  # Altitude of the orbit in kilometers
+A_FRONTAL = 49.5  # Frontal area of the spacecraft in square meters
+A_LATERAL = 3.43  # Lateral area of the spacecraft in square meters
 
 # ---------------------------------------------------------------------------
 # NRLMSISE-00 density tables  [kg/m^3]
@@ -293,7 +296,7 @@ def zonal_max_accel_profile(h_km, n_list=(2, 3, 4, 5, 6), n_lat=361):
 # 2) Atmospheric drag
 # ---------------------------------------------------------------------------
 def drag_accel(h_km, area_to_mass, psi_deg,
-               Cd=2.2, n_exp=6, corotating_atm=True, activity='mean'):
+               Cd=2.2, n_exp=6, corotating_atm=False, activity='mean'):
     """
     Drag acceleration magnitude [m/s^2] for a circular orbit at h_km [km].
 

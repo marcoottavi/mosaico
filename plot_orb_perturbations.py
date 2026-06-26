@@ -88,7 +88,7 @@ H_MIN, H_MAX, N_PTS = 200.0, 1000.0, 80
 ALT = np.linspace(H_MIN, H_MAX, N_PTS)
 REF_ALTS = [200, 300, 400, 500, 600, 700, 800, 900, 1000]
 
-AM_GRID  = np.array([0.003, 0.011, 0.023])   # area-to-mass [m^2/kg]
+AM_GRID  = np.array([0.00274, 0.00945, 0.0229])   # area-to-mass [m^2/kg]
 CR_GRID  = np.linspace(1.0,   2.0,   6)   # SRP reflectivity
 
 DECAY_DAYS     = 10.0

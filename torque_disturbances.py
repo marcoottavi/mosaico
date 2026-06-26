@@ -48,48 +48,32 @@ ALT = np.linspace(H_MIN, H_MAX, N_PTS)
 N_ATOMS        = 1
 NOMINAL_EDGE   = 1.65    # m
 NOMINAL_WIDTH  = 0.4     # m
-NOMINAL_MASS   = 1250/7    # kg, single hexagon
+NOMINAL_MASS   = 1250    # kg, total
 COM_COP        = 0.2     # m
-
-SCALING_MIN = 0.8
-SCALING_MAX = 1.2
 
 cr_min = 1.0
 cr_max = 2.0
-cr_nom = 1.3
+cr_nom = 1.7
 Cd     = 2.2
 n_exp  = 6
+
+# Drag Areas
+am_nom = 0.000945
+am_min = 0.00274
+am_max = 0.0229
+
+# Solar Areas
+a_srp = 49.5 # m^2
 
 # ============================================================
 # Build min / nominal / max spacecraft properties
 # ============================================================
-edge_min = NOMINAL_EDGE * SCALING_MIN
-edge_max = NOMINAL_EDGE * SCALING_MAX
-thickness_min = NOMINAL_WIDTH * SCALING_MIN
-thickness_max = NOMINAL_WIDTH * SCALING_MAX
-mass_min = NOMINAL_MASS * SCALING_MIN
-mass_max = NOMINAL_MASS * SCALING_MAX
-com_cop_min = COM_COP * SCALING_MIN
-com_cop_max = COM_COP * SCALING_MAX
-com_cop_nom = COM_COP
 
-dict_nominal = compute_mass_properties(NOMINAL_EDGE, NOMINAL_WIDTH, NOMINAL_MASS, N_ATOMS)
-dict_min     = compute_mass_properties(edge_min,     thickness_min, mass_min,     N_ATOMS)
-dict_max     = compute_mass_properties(edge_max,     thickness_max, mass_max,     N_ATOMS)
-
+dict_nominal = compute_mass_properties(NOMINAL_EDGE, NOMINAL_WIDTH, NOMINAL_MASS/7, N_ATOMS) # mass is that of one hexagon
 mass_nom    = dict_nominal["total_mass"]
-mass_min_   = dict_min["total_mass"]
-mass_max_   = dict_max["total_mass"]
 surface_nom = dict_nominal["projected_area_xy"]
-surface_min = dict_min["projected_area_xy"]
-surface_max = dict_max["projected_area_xy"]
 inertia_nom = dict_nominal["inertia_about_origin"]
-inertia_min = dict_min["inertia_about_origin"]
-inertia_max = dict_max["inertia_about_origin"]
 
-am_nom = surface_nom / mass_nom
-am_min = surface_min / mass_max_
-am_max = surface_max / mass_min_
 
 # ============================================================
 # Matplotlib styling
@@ -139,7 +123,7 @@ def style_axes(ax, ylabel="Disturbance torque [N·m]",
 # Gravity-gradient torque
 # ============================================================
 def gravity_gradient_torque(altitude_km, inertia_matrix):
-    inertia_km = inertia_matrix
+
     r = (R_EARTH + altitude_km)*1e3
     phi   = np.linspace(0, 2*np.pi, 100, endpoint=False)
     theta = np.linspace(0, np.pi, 50)
@@ -149,10 +133,11 @@ def gravity_gradient_torque(altitude_km, inertia_matrix):
     z = r * np.cos(theta)
     r_vec  = np.stack((x, y, z), axis=-1)
     r_norm = np.linalg.norm(r_vec, axis=-1)
-    Ir     = np.einsum('ij,...j->...i', inertia_km, r_vec)
-    torque = (3 * MU_EARTH / r_norm[..., None]**5) * np.cross(r_vec, Ir)
-    torque_mag = np.linalg.norm(torque, axis=-1)*1e9
+    Ir     = np.einsum('ij,...j->...i', inertia_matrix, r_vec)
+    torque = (3 * MU_EARTH / r_norm[..., None]**5) * np.cross(r_vec, Ir)*1e9
+    torque_mag = np.linalg.norm(torque, axis=-1)
     max_idx = np.unravel_index(np.argmax(torque_mag), torque_mag.shape)
+
     return torque_mag[max_idx], phi[max_idx], theta[max_idx]
 
 # ============================================================
@@ -168,7 +153,7 @@ def drag_torque(h_km, area_m2, mass_kg, psi_deg,
 # ============================================================
 # SRP torque (no solar activity dependence in the SRP model)
 # ============================================================
-def srp_torque(area_m2, mass_kg, cr, com_cop_m=0.1):
+def srp_torque(area_m2, mass_kg, cr, com_cop_m=COM_COP):
     a_m   = area_m2 / mass_kg
     a_srp = op.srp_accel(a_m, cr, eclipse_fraction=0.0)
     return mass_kg * a_srp * com_cop_m   # [N·m]
@@ -177,184 +162,55 @@ def srp_torque(area_m2, mass_kg, cr, com_cop_m=0.1):
 # Figure 1: Gravity-gradient band + worst-case angles
 # ============================================================
 def fig_gravity_gradient_torque():
-    gg_low, gg_nom, gg_high   = [], [], []
-    phi_low, phi_nom, phi_high = [], [], []
-    theta_low, theta_nom, theta_high = [], [], []
+    gg = []
+    for alt in ALT:
+        print(gravity_gradient_torque(alt, inertia_nom)[0])
+        gg += [gravity_gradient_torque(alt, inertia_nom)[0]]
 
-    for h in ALT:
-        t_l, p_l, th_l = gravity_gradient_torque(h, inertia_min)
-        t_n, p_n, th_n = gravity_gradient_torque(h, inertia_nom)
-        t_h, p_h, th_h = gravity_gradient_torque(h, inertia_max)
-        gg_low.append(t_l);  phi_low.append(p_l);  theta_low.append(th_l)
-        gg_nom.append(t_n);  phi_nom.append(p_n);  theta_nom.append(th_n)
-        gg_high.append(t_h); phi_high.append(p_h); theta_high.append(th_h)
-
-    gg_low   = np.array(gg_low);   gg_nom  = np.array(gg_nom)
-    gg_high  = np.array(gg_high)
-    phi_low  = np.array(phi_low);  phi_nom = np.array(phi_nom)
-    phi_high = np.array(phi_high)
-    theta_low  = np.array(theta_low)
-    theta_nom  = np.array(theta_nom)
-    theta_high = np.array(theta_high)
-
-    # Torque magnitude
-    fig, ax = plt.subplots()
-    ax.fill_between(ALT, gg_low, gg_high, color="#4c72b0", alpha=0.20,
-                    label="Inertia envelope (±20%)")
-    ax.plot(ALT, gg_nom, color="#1f4e79", linewidth=2.3, label="Nominal")
-    style_axes(ax)
-    ax.set_title("Gravity-Gradient Torque vs. Altitude")
-    ax.legend()
-    fig.savefig(os.path.join(OUT_DIR, "fig_torque_gravity_gradient.svg"))
-    plt.close(fig)
-
-    # Worst-case phi
-    phi_low_deg  = np.rad2deg(np.unwrap(phi_low))
-    phi_nom_deg  = np.rad2deg(np.unwrap(phi_nom))
-    phi_high_deg = np.rad2deg(np.unwrap(phi_high))
-    fig, ax = plt.subplots()
-    for arr, lbl, col in [
-        (phi_low_deg,  "low inertia",     "#4c72b0"),
-        (phi_nom_deg,  "nominal inertia", "#1f4e79"),
-        (phi_high_deg, "high inertia",    "#08306b"),
-    ]:
-        ax.plot(ALT, arr, color=col, linewidth=2.0,
-                label=rf"Worst-case $\phi$ ({lbl})")
-    style_axes(ax, ylabel=r"Worst-case $\phi$ [deg]", logy=False)
-    ax.set_title(r"Worst-case Gravity-Gradient Angle $\phi$ vs. Altitude")
-    ax.legend()
-    fig.savefig(os.path.join(OUT_DIR,
-                             "fig_torque_gravity_gradient_phi.svg"))
-    plt.close(fig)
-
-    # Worst-case theta
-    theta_low_deg  = np.rad2deg(theta_low)
-    theta_nom_deg  = np.rad2deg(theta_nom)
-    theta_high_deg = np.rad2deg(theta_high)
-    fig, ax = plt.subplots()
-    for arr, lbl, col in [
-        (theta_low_deg,  "low inertia",     "#4c72b0"),
-        (theta_nom_deg,  "nominal inertia", "#1f4e79"),
-        (theta_high_deg, "high inertia",    "#08306b"),
-    ]:
-        ax.plot(ALT, arr, color=col, linewidth=2.0,
-                label=rf"Worst-case $\theta$ ({lbl})")
-    style_axes(ax, ylabel=r"Worst-case $\theta$ [deg]", logy=False)
-    ax.set_title(r"Worst-case Gravity-Gradient Angle $\theta$ vs. Altitude")
-    ax.legend()
-    fig.savefig(os.path.join(OUT_DIR,
-                             "fig_torque_gravity_gradient_theta.svg"))
-    plt.close(fig)
-
-    return (
-        {"low": gg_low, "nom": gg_nom, "high": gg_high},
-        {"low": phi_low,   "nom": phi_nom,   "high": phi_high},
-        {"low": theta_low, "nom": theta_nom, "high": theta_high},
-    )
+    plt.figure(figsize=(10,6))
+    plt.plot(ALT, gg, color="#e0590b", linewidth=2.3, label="Gravity-gradient torque")
+    return gg
 
 # ============================================================
-# Figure 2: Drag torque — all three solar activity levels
+# Figure 2: Drag torque
 # ============================================================
-def _drag_torque_envelopes():
-    """
-    Compute drag torque (low/nom/high inertia × low/mean/high activity)
-    and return nested dict:
-        { activity: {'low': arr, 'nom': arr, 'high': arr} }
-    """
-    psi_grid = np.linspace(0.0, 180.0, 37)
-    result = {}
-    for act in op.SOLAR_ACTIVITIES:
-        lo_arr, nom_arr, hi_arr = [], [], []
-        for h in ALT:
-            # Lower bound: smallest area, largest mass, anti-bulge, min lever arm
-            t_low = drag_torque(h, surface_min, mass_max_, 180.0,
-                                Cd=Cd, n_exp=n_exp,
-                                com_cop_m=com_cop_min, activity=act)
-            # Upper bound: largest area, smallest mass, bulge, max lever arm
-            t_high = drag_torque(h, surface_max, mass_min_, 0.0,
-                                 Cd=Cd, n_exp=n_exp,
-                                 com_cop_m=com_cop_max, activity=act)
-            # Nominal: average over psi, nominal geometry
-            nom_vals = [drag_torque(h, surface_nom, mass_nom, psi,
-                                    Cd=Cd, n_exp=n_exp,
-                                    com_cop_m=com_cop_nom, activity=act)
-                        for psi in psi_grid]
-            lo_arr.append(t_low)
-            nom_arr.append(np.mean(nom_vals))
-            hi_arr.append(t_high)
-        result[act] = {
-            'low':  np.array(lo_arr),
-            'nom':  np.array(nom_arr),
-            'high': np.array(hi_arr),
-        }
-    return result
 
-
-def fig_drag_torque(drag_env):
-    """
-    Fig 2 — drag torque bands for all three solar activity levels
-    on one axes, replacing the original single-activity version.
-    """
-    fig, ax = plt.subplots()
-    for act in op.SOLAR_ACTIVITIES:
-        st = ACT_STYLE[act]
-        d  = drag_env[act]
-        ax.fill_between(ALT, d['low'], d['high'],
-                        color=st['fill'], alpha=0.22)
-        ax.plot(ALT, d['nom'], color=st['color'],
-                linestyle=st['ls'], linewidth=st['lw'],
-                label=f"Nominal – {st['label']}")
-
-    style_axes(ax)
-    ax.set_title("Aerodynamic Drag Torque vs. Altitude\n"
-                 "(NRLMSISE-00, shaded = geometry + ψ envelope at each activity level)")
-    ax.legend(fontsize=10)
-    fig.savefig(os.path.join(OUT_DIR, "fig_torque_drag.svg"))
-    plt.close(fig)
-
-
-def fig_drag_torque_solar_activity(drag_env):
+def fig_drag_torque_solar_activity():
     """
     Fig — NEW: three-panel figure (one row per solar activity level)
     showing drag torque low/nom/high inertia bands separately.
     Makes it easy to read off the torque range at a specific activity level.
     """
-    fig, axes = plt.subplots(1, 3, figsize=(16, 5.5), sharey=True)
-    for ax, act in zip(axes, op.SOLAR_ACTIVITIES):
-        st = ACT_STYLE[act]
-        d  = drag_env[act]
-        ax.fill_between(ALT, d['low'], d['high'],
-                        color=st['fill'], alpha=0.35,
-                        label="Geometry + ψ envelope")
-        ax.plot(ALT, d['nom'], color=st['color'],
-                linestyle='-', linewidth=2.2, label="Nominal")
-        ax.plot(ALT, d['low'], color=st['color'],
-                linestyle=':', linewidth=1.2, alpha=0.8)
-        ax.plot(ALT, d['high'], color=st['color'],
-                linestyle='--', linewidth=1.2, alpha=0.8)
-        ax.set_yscale("log")
-        ax.set_xlim(H_MIN, H_MAX)
-        ax.set_xlabel("Altitude [km]", fontsize=12)
-        ax.set_title(st['label'], fontsize=12, color=st['color'])
-        ax.grid(True, which="major")
-        ax.grid(True, which="minor", alpha=0.25)
-        ax.tick_params(axis="both", labelsize=10)
-        ax.legend(fontsize=9)
-    axes[0].set_ylabel("Drag torque [N·m]", fontsize=12)
-    fig.suptitle("Aerodynamic Drag Torque by Solar Activity Level",
-                 fontweight="bold", fontsize=14)
-    fig.tight_layout(rect=[0, 0, 1, 0.95])
-    fig.savefig(os.path.join(OUT_DIR,
-                             "fig_torque_drag_solar_activity.svg"))
+
+    td_high = drag_torque(ALT, am_max*NOMINAL_MASS, NOMINAL_MASS, psi_deg = 0.0,
+                Cd=2.2, n_exp=6, com_cop_m=COM_COP, activity='high')
+    td_nom = drag_torque(ALT, am_nom*NOMINAL_MASS, NOMINAL_MASS, psi_deg = 90.0,
+                Cd=2.2, n_exp=6, com_cop_m=COM_COP, activity='mean')
+    td_low = drag_torque(ALT, am_min*NOMINAL_MASS, NOMINAL_MASS, psi_deg = 180.0,
+                Cd=2.2, n_exp=6, com_cop_m=COM_COP, activity='low')
+    
+    fig, ax = plt.subplots()
+    ax.fill_between(ALT, td_low, td_high,
+                    color="#d4a017", alpha=0.25,
+                    label="SRP torque envelope")
+    ax.plot(ALT, td_nom, color="#9c7a00", linewidth=2.3, label="Nominal")
+    style_axes(ax)
+    ax.set_title("Drag Torque vs. Altitude")
+    ax.legend()
+    fig.savefig(os.path.join(OUT_DIR, "fig_torque_drag.svg"))
     plt.close(fig)
+
+    return {"low": td_low, "nom": td_nom, "high": td_high}
+    
+
 
 # ============================================================
 # Figure 3: SRP torque band (unchanged — no activity dependence)
 # ============================================================
 def fig_srp_torque():
-    srp_low_val  = srp_torque(surface_min, mass_max_, cr_min, com_cop_min)
-    srp_nom_val  = srp_torque(surface_nom, mass_nom,  cr_nom, com_cop_nom)
-    srp_high_val = srp_torque(surface_max, mass_min_, cr_max, com_cop_max)
+    srp_low_val  = srp_torque(a_srp, mass_nom, cr_min, COM_COP)
+    srp_nom_val  = srp_torque(a_srp, mass_nom, cr_nom, COM_COP)
+    srp_high_val = srp_torque(a_srp, mass_nom, cr_max, COM_COP)
 
     srp_low  = np.full_like(ALT, srp_low_val)
     srp_nom  = np.full_like(ALT, srp_nom_val)
@@ -372,34 +228,11 @@ def fig_srp_torque():
     plt.close(fig)
     return {"low": srp_low, "nom": srp_nom, "high": srp_high}
 
-# ============================================================
-# Figure 4: Combined budget — mean activity (original)
-# ============================================================
-def fig_torque_budget(gg, drag_env, srp):
-    drag = drag_env['mean']
-    fig, ax = plt.subplots()
-    ax.fill_between(ALT, gg["low"], gg["high"],
-                    color="#e78d51", alpha=0.12)
-    ax.plot(ALT, gg["nom"], color="#e0590b", label="Gravity-gradient")
-    ax.fill_between(ALT, drag["low"], drag["high"],
-                    color="#3182bd", alpha=0.12)
-    ax.plot(ALT, drag["nom"], color="#08306b",
-            label="Drag nominal (mean activity)")
-    ax.fill_between(ALT, srp["low"], srp["high"],
-                    color="#d4a017", alpha=0.16)
-    ax.plot(ALT, srp["nom"], color="#9c7a00",
-            linestyle="--", label="SRP")
-    style_axes(ax)
-    ax.set_title("Combined Disturbance Torque Budget vs. Altitude\n"
-                 "(drag at mean solar activity)")
-    ax.legend()
-    fig.savefig(os.path.join(OUT_DIR, "fig_torque_budget.svg"))
-    plt.close(fig)
 
 # ============================================================
 # Figure 5: Combined budget — all three solar activity levels  (NEW)
 # ============================================================
-def fig_torque_budget_solar_activity(gg, drag_env, srp):
+def fig_torque_budget_solar_activity(gg, drag, srp):
     """
     Full torque budget overlaying drag nominal curves for all three
     solar activity levels, revealing where solar cycle modulates drag
@@ -408,30 +241,23 @@ def fig_torque_budget_solar_activity(gg, drag_env, srp):
     fig, ax = plt.subplots(figsize=(10, 6.5))
 
     # Gravity-gradient (no activity dependence)
-    ax.fill_between(ALT, gg["low"], gg["high"],
-                    color="#e78d51", alpha=0.12)
-    ax.plot(ALT, gg["nom"], color="#e0590b", linewidth=2.4,
-            label="Gravity-gradient (nominal inertia)", zorder=5)
+    ax.plot(ALT, gg, color="#e0590b", linewidth=2.4,
+            label="Gravity-gradient Torque", zorder=5)
 
     # SRP (no activity dependence)
     ax.fill_between(ALT, srp["low"], srp["high"],
                     color="#d4a017", alpha=0.18)
     ax.plot(ALT, srp["nom"], color="#9c7a00", linestyle="--",
-            linewidth=2.0, label="SRP nominal", zorder=5)
+            linewidth=2.0, label="SRP Torque nominal", zorder=5)
 
     # Drag — three activity levels
-    for act in op.SOLAR_ACTIVITIES:
-        st = ACT_STYLE[act]
-        d  = drag_env[act]
-        ax.fill_between(ALT, d['low'], d['high'],
-                        color=st['fill'], alpha=0.15)
-        ax.plot(ALT, d['nom'], color=st['color'],
-                linestyle=st['ls'], linewidth=st['lw'],
-                label=f"Drag nominal – {st['label']}", zorder=4)
+    ax.fill_between(ALT, drag["low"], drag["high"],
+                    color="#f5524f", alpha=0.18)
+    ax.plot(ALT, drag["nom"], color="#f60400", linestyle="--",
+            linewidth=2.0, label="Drag Torque nominal", zorder=5)
 
     style_axes(ax)
-    ax.set_title("Disturbance Torque Budget vs. Solar Activity — LEO SSO\n"
-                 "(NRLMSISE-00)")
+    ax.set_title("Disturbance Torque Budget")
     ax.legend(ncol=2, loc="upper right", fontsize=9)
     fig.savefig(os.path.join(OUT_DIR,
                              "fig_torque_budget_solar_activity.svg"))
@@ -442,20 +268,15 @@ def fig_torque_budget_solar_activity(gg, drag_env, srp):
 # ============================================================
 if __name__ == "__main__":
     print("Computing gravity-gradient torque band...")
-    gg, phi, theta = fig_gravity_gradient_torque()
+    gg = fig_gravity_gradient_torque()
 
-    print("Computing drag torque bands (3 solar activity levels)...")
-    drag_env = _drag_torque_envelopes()
-    fig_drag_torque(drag_env)
-    fig_drag_torque_solar_activity(drag_env)
+    print("Computing drag torque bands (slow, nominal, fast, see report)...")
+    drag = fig_drag_torque_solar_activity()
 
     print("Computing SRP torque band...")
     srp = fig_srp_torque()
 
-    print("Combined disturbance torque budget (mean activity)...")
-    fig_torque_budget(gg, drag_env, srp)
-
-    print("Combined disturbance torque budget (all 3 activity levels)...")
-    fig_torque_budget_solar_activity(gg, drag_env, srp)
+    print("Computing full torque budget (gravity-gradient + drag + SRP)...")
+    fig_torque_budget_solar_activity(gg, drag, srp)
 
     print("Done. Figures saved in:", os.path.abspath(OUT_DIR))
