@@ -58,7 +58,7 @@ Cd     = 2.2
 n_exp  = 6
 
 # Drag Areas
-am_nom = 0.000945
+am_nom = 0.00945
 am_min = 0.00274
 am_max = 0.0229
 
