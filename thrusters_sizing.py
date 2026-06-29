@@ -6,15 +6,18 @@ from orbital_perturbations import R_EARTH, MU_EARTH
 
 
 OUT_DIR = 'figures'
-PHASING_MANEUVER = 55/2 # m/s
-RECCOMMENDED_PHASING_MANEUVER = 20/2 # m/s
+PHASING_MANEUVER = 20 # m/s
+RECCOMMENDED_PHASING_MANEUVER = 20 # m/s
 WAYPOINTS = np.array([30000, 5000, 1000, 500])/1000 # km
-A_M = 0.01 # m^2/kg
+A_M_MIN = 0.00274 # m^2/kg
+# A_M_MEAN = 0.00945 # m^2/kg
+A_M_MEAN = 0.00274
+A_M_MAX = 0.0229 # m^2/kg
 ORBIT_ALTITUDE = 600 # km
-T_MISSION = 10*365*24*3600 # seconds
+T_MISSION = 1*365*24*3600 # seconds
 I_SP = 230 # s
 MASS = 1250 # kg (whole atom)
-DELTA_V_MARGIN = 0.2 # 20% margin
+DELTA_V_MARGIN = 0.0 # 20% margin
 
 # Rendezvous and docking budget
 def rendezvous_and_docking(waypoints, orbit_altitude, radius, mu):
@@ -43,7 +46,7 @@ def rendezvous_and_docking(waypoints, orbit_altitude, radius, mu):
 
 
 # Station-keeping budget
-def stationkeeping_budget(A_m, h, T_mission):
+def stationkeeping_budget(h, T_mission):
     """
     Calculate the station-keeping budget for a spacecraft.
 
@@ -55,11 +58,11 @@ def stationkeeping_budget(A_m, h, T_mission):
     Returns:
     float: Total delta-v required for station-keeping.
     """
-    drag_low = op.drag_accel(h, A_m, psi_deg = 90,
+    drag_low = op.drag_accel(h, A_M_MEAN, psi_deg = 90,
                Cd=2.2, n_exp=6, corotating_atm=False, activity='low')
-    drag_mean = op.drag_accel(h, A_m, psi_deg = 90,
+    drag_mean = op.drag_accel(h, A_M_MEAN, psi_deg = 90,
                Cd=2.2, n_exp=6, corotating_atm=False, activity='mean')
-    drag_high = op.drag_accel(h, A_m, psi_deg = 90,
+    drag_high = op.drag_accel(h, A_M_MEAN, psi_deg = 90,
                Cd=2.2, n_exp=6, corotating_atm=False, activity='high')
     
     delta_v_sk_low = drag_low * T_mission
@@ -68,7 +71,7 @@ def stationkeeping_budget(A_m, h, T_mission):
 
     return delta_v_sk_low, delta_v_sk_mean, delta_v_sk_high
 
-def total_budget_histogram(A_m, h, T_mission, margin = 0.2):
+def total_budget_histogram(h, T_mission, margin = 0.2):
     """
     Calculate the total budget histogram for a spacecraft.
 
@@ -81,7 +84,7 @@ def total_budget_histogram(A_m, h, T_mission, margin = 0.2):
     tuple: Total delta-v required for rendezvous and docking, station-keeping low, mean, and high.
     """
     r_and_d_budget = rendezvous_and_docking(WAYPOINTS, h, R_EARTH, MU_EARTH)*(1+margin)
-    delta_v_sk_low, delta_v_sk_mean, delta_v_sk_high = stationkeeping_budget(A_m, h, T_mission)
+    delta_v_sk_low, delta_v_sk_mean, delta_v_sk_high = stationkeeping_budget(h, T_mission)
     delta_v_sk_low *= (1+margin)
     delta_v_sk_mean *= (1+margin)
     delta_v_sk_high *= (1+margin)
@@ -97,7 +100,6 @@ def total_budget_histogram(A_m, h, T_mission, margin = 0.2):
     plt.ylabel('Delta-v (m/s)')
     plt.title(f'Delta-V Budget with Margin of {margin*100:.0f}%')
     plt.yscale('log')
-    plt.ylim(1, max(budgets)*5)
     plt.grid(which = 'both', linestyle = '--', alpha = 0.3)
 
     # Add values on top of bars
@@ -156,7 +158,7 @@ if __name__ == "__main__":
         os.makedirs(OUT_DIR)
 
     # Rendezvous and docking budget
-    r_and_d_budget, delta_v_sk_low, delta_v_sk_mean, delta_v_sk_high = total_budget_histogram(A_M, ORBIT_ALTITUDE, T_MISSION, margin = DELTA_V_MARGIN)
+    r_and_d_budget, delta_v_sk_low, delta_v_sk_mean, delta_v_sk_high = total_budget_histogram(ORBIT_ALTITUDE, T_MISSION, margin = DELTA_V_MARGIN)
 
     # Trust level selection plot
     thrusters_selection_plot(MASS, ORBIT_ALTITUDE, R_EARTH, MU_EARTH)

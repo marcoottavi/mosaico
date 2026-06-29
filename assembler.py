@@ -6,6 +6,8 @@ import os
 
 SQRT3 = np.sqrt(3.0)
 OUT_DIR = 'figures'
+RAD_RED = 1.0
+theta_thruster = np.radians(45)
 
 # ============================================================
 # Small-hex axial grid
@@ -410,11 +412,26 @@ def plot_structure(
     small_hex_axials = props["small_hex_axials"]
     atom_centers_small = props["atom_centers_small"]
     centroid = props["centroid"]
+    inertia_matrix = props["inertia_about_origin"]
 
     if ax is None:
         fig, ax = plt.subplots(figsize=(8, 8))
     else:
         fig = ax.figure
+
+    # Plot Equivalent Diameter Circle
+    equiv_radius = np.sqrt(4 * inertia_matrix[0,0] / (mass_hex*7))*RAD_RED # Assuming 7 hexagons per atom)
+    theta = np.linspace(0, 2 * np.pi, 100)
+    circle_x = centroid[0] + (equiv_radius) * np.cos(theta)
+    circle_y = centroid[1] + (equiv_radius) * np.sin(theta)
+    ax.plot(circle_x, circle_y, color='green', linestyle='--')
+    print("Thrusters at radius [m]:", equiv_radius)
+
+    # Thrusters positions
+    theta_thrusters = np.array([theta_thruster, - theta_thruster, np.pi - theta_thruster, np.pi + theta_thruster])
+    thruster_x = centroid[0] + (equiv_radius) * np.cos(theta_thrusters)
+    thruster_y = centroid[1] + (equiv_radius) * np.sin(theta_thrusters)
+    ax.scatter(thruster_x, thruster_y, s=400, c='orange', marker='.', label='Thrusters', zorder=5)
 
     # Plot all small hexagons.
     for q, r in small_hex_axials:
@@ -441,7 +458,7 @@ def plot_structure(
         ax.scatter(
             atom_centers_xy[:, 0],
             atom_centers_xy[:, 1],
-            s=45,
+            s=100,
             c="tab:blue",
             label="Atom centers",
             zorder=5,
@@ -475,9 +492,8 @@ def plot_structure(
     ax.set_aspect("equal", adjustable="box")
     ax.set_xlabel("Body-frame x")
     ax.set_ylabel("Body-frame y")
-    ax.set_title(f"Assembly of {n_atoms} atom") if n_atoms == 1 else ax.set_title(f"Assembly of {n_atoms} atoms")
     ax.grid(True, alpha=0.3)
-    ax.legend()
+    ax.legend(bbox_to_anchor=(-0.2, -0.15), loc='center left', ncol=3)
     plt.tight_layout()
 
     return fig, ax, props

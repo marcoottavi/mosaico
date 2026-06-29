@@ -164,7 +164,6 @@ def srp_torque(area_m2, mass_kg, cr, com_cop_m=COM_COP):
 def fig_gravity_gradient_torque():
     gg = []
     for alt in ALT:
-        print(gravity_gradient_torque(alt, inertia_nom)[0])
         gg += [gravity_gradient_torque(alt, inertia_nom)[0]]
 
     plt.figure(figsize=(10,6))

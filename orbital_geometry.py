@@ -9,11 +9,13 @@ if not os.path.exists(OUT_DIR):
     os.makedirs(OUT_DIR)
 
 MASS_TOTAL = 1250  # Total mass of the spacecraft in kg
+EPS_DEG = 23.44  # Obliquity of the ecliptic in degrees
+INC_DEG = 97.79
 
 os.system('clear')
 
 
-def gamma_angle(lambda_s, i_deg, delta_s=23.44):
+def gamma_angle(lambda_s, i_deg, eps=23.44):
     """
     gamma angle [rad] = arccos(h_hat . s_hat) for a dawn-dusk SSO.
 
@@ -21,24 +23,24 @@ def gamma_angle(lambda_s, i_deg, delta_s=23.44):
     ----------
     lambda_s     :              float or ndarray  Sun ecliptic longitude [rad]
     i_deg   : float             Orbital inclination [deg]
-    delta_s : float             Obliquity of the ecliptic [deg], default 23.44
+    eps : float             Obliquity of the ecliptic [deg], default 23.44
 
     Returns
     -------
     gamma : same shape as lam, in radians
     """
     i   = np.radians(i_deg)
-    delta_s = np.radians(delta_s)
+    eps = np.radians(eps)
 
-    dot = (np.sin(i) * (np.cos(lambda_s)**2 + np.sin(lambda_s)**2 * np.cos(delta_s))
-           + np.cos(i) * np.sin(lambda_s) * np.sin(delta_s))
+    dot = (np.sin(i) * (np.cos(lambda_s)**2 + np.sin(lambda_s)**2 * np.cos(eps))
+           + np.cos(i) * np.sin(lambda_s) * np.sin(eps))
 
     return np.arccos(np.clip(dot, -1.0, 1.0))
 
 
-def sin_alpha(theta, lambda_s, inc, delta_s = 23.44):
+def sin_alpha(theta, lambda_s, inc, eps = 23.44):
     """
-    Compute the absolute value of the sine of the gamma angle for a given
+    Compute the absolute value of the sine of the alpha (Angle of Attack) angle for a given
     orbital inclination, solar longitude, and obliquity.
 
     Parameters
@@ -46,17 +48,17 @@ def sin_alpha(theta, lambda_s, inc, delta_s = 23.44):
     inc     : float or ndarray  Orbital inclination [deg]
     theta   : float or ndarray  True anomaly [rad]
     lambda_s: float or ndarray  Sun ecliptic longitude [rad]
-    delta_s : float             Obliquity of the ecliptic [deg], default 23.44
+    eps : float             Obliquity of the ecliptic [deg], default 23.44
 
     Returns
     -------
-    abs_sin_gamma : same shape as inputs, dimensionless
+    abs_sin_alpha : same shape as inputs, dimensionless
     """
     inc = np.radians(inc)
-    delta_s = np.radians(delta_s)
+    eps = np.radians(eps)
 
-    return -np.cos(inc)*np.cos(theta)*(np.cos(lambda_s)**2+np.cos(delta_s)*np.sin(lambda_s)**2)\
-          + np.sin(lambda_s)*(np.cos(theta)*np.sin(delta_s)*np.sin(inc)+(1-np.cos(delta_s))*np.cos(lambda_s)*np.sin(theta))
+    return -np.cos(inc)*np.cos(theta)*(np.cos(lambda_s)**2+np.cos(eps)*np.sin(lambda_s)**2)\
+          + np.sin(lambda_s)*(np.cos(theta)*np.sin(eps)*np.sin(inc)+(1-np.cos(eps))*np.cos(lambda_s)*np.sin(theta))
 
 
 def max_mean_min(x):
@@ -119,19 +121,17 @@ def plot_angle(t, value, ylabel = ''):
 # ── Example usage ────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    i_deg = 97.79
-
     t_grid = np.arange(0, 365.2425* 24 * 3600, 60)  # Time grid for one day in seconds
     n_sc = np.sqrt(MU_EARTH / (R_EARTH + ALTITUDE)**3)  # mean motion [rad/s]
-    print(n_sc)
     n_sun = 2 * np.pi / (365.25 * 24 * 3600)  # mean motion of the Sun [rad/s]
     theta = n_sc * t_grid  # True anomaly [rad]
     lambda_s = n_sun * t_grid  # Sun ecliptic longitude [rad]
 
-    gamma = np.rad2deg(gamma_angle(lambda_s, i_deg))
+    gamma = np.rad2deg(gamma_angle(lambda_s, INC_DEG, eps=EPS_DEG))
     gamma_max, gamma_mean, gamma_min = max_mean_min(gamma)
+    cos_gamma_max, cos_gamma_mean, cos_gamma_min = max_mean_min(np.cos(np.radians(gamma)))
 
-    abs_sin_alpha = np.abs(sin_alpha(theta, lambda_s, i_deg))
+    abs_sin_alpha = np.abs(sin_alpha(theta, lambda_s, INC_DEG, eps=EPS_DEG))
     abs_cos_alpha = np.sqrt(1 - abs_sin_alpha**2)
     alpha = np.rad2deg(np.arcsin(abs_sin_alpha))
 
@@ -146,6 +146,7 @@ if __name__ == "__main__":
     # Print summary of results
     print(f"gamma Angle: Max = {gamma_max:.2f} deg, Mean = {gamma_mean:.2f} deg, Min = {gamma_min:.2f} deg")
     print(f"Alpha Angle: Max = {alpha_max:.2f} deg, Mean = {alpha_mean:.2f} deg, Min = {alpha_min:.2f} deg")
+    print(f"Cos(gamma): Max = {cos_gamma_max:.4f}, Mean = {cos_gamma_mean:.4f}, Min = {cos_gamma_min:.4f}")
     print(f"Sin(Alpha): Max = {sin_alpha_max:.4f}, Mean = {sin_alpha_mean:.4f}, Min = {sin_alpha_min:.4f}")
     print(f"Cos(Alpha): Max = {cos_alpha_max:.4f}, Mean = {cos_alpha_mean:.4f}, Min = {cos_alpha_min:.4f}")
 
